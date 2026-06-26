@@ -12,11 +12,11 @@ block_cipher = None
 ASSETS = os.path.join("pdf_tool", "assets")
 ICON_ICO = os.path.join(ASSETS, "icon.ico")
 
-# Zabalené dáta: priečinok assets → do "assets" (sys._MEIPASS/assets)
+# Runtime potrebuje iba malú .ico ikonu. Veľké zdrojové icon.png ostáva
+# v repozitári kvôli regenerovaniu, ale do .exe sa nebalí.
 datas = []
-if os.path.isdir(ASSETS):
-    for fn in os.listdir(ASSETS):
-        datas.append((os.path.join(ASSETS, fn), "assets"))
+if os.path.exists(ICON_ICO):
+    datas.append((ICON_ICO, "assets"))
 
 # Qt podsystémy, ktoré appka nepoužíva. Vyhodením sa nezaťahujú do balíka.
 excludes = [
