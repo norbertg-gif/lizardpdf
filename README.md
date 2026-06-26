@@ -85,4 +85,4 @@ pushi postaví `.exe` na `windows-latest`, spustí testy a priloží
 
 ## Tech stack
 
-Python 3.11+ · PyMuPDF (fitz) · PySide6 (Qt) · PyInstaller
+Python 3.11+ · PyMuPDF (fitz) · PySide6-Essentials (QtCore/Gui/Widgets) · PyInstaller
