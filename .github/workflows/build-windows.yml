@@ -22,6 +22,10 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller pillow
 
+      - name: Install UPX (for smaller exe)
+        run: choco install upx -y --no-progress
+        shell: pwsh
+
       - name: Generate icon.ico from icon.png
         run: python tools/make_icon.py
         continue-on-error: true
@@ -33,6 +37,12 @@ jobs:
 
       - name: Build LizardPDF.exe
         run: pyinstaller build.spec
+
+      - name: Report exe size
+        run: |
+          $f = Get-Item dist/LizardPDF.exe
+          "LizardPDF.exe = {0:N1} MB" -f ($f.Length / 1MB)
+        shell: pwsh
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
