@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import Enum, auto
 
 from PySide6.QtCore import QTimer, Qt, Signal
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QLabel, QScrollArea
 
 from ..core.renderer import PageRenderer
@@ -30,6 +30,8 @@ class PageView(QScrollArea):
         self._zoom = 1.0  # násobok base DPI pre CUSTOM
         self._fit_mode = FitMode.FIT_WIDTH
         self._base_dpi = 96
+        self._last_dpi = self._base_dpi
+        self._highlight_query = ""
         self._resize_timer = QTimer(self)
         self._resize_timer.setSingleShot(True)
         self._resize_timer.setInterval(120)
@@ -68,6 +70,10 @@ class PageView(QScrollArea):
         self._fit_mode = FitMode.FIT_WIDTH
         self.refresh()
 
+    def set_highlight_query(self, query: str) -> None:
+        self._highlight_query = query.strip()
+        self.refresh()
+
     # ------------------------------------------------------------------ #
     def _compute_dpi(self) -> int:
         try:
@@ -103,9 +109,31 @@ class PageView(QScrollArea):
             self._label.clear()
             return
         dpi = self._compute_dpi()
+        self._last_dpi = dpi
         img = self._renderer.render_page(self._idx, dpi=dpi)
+        if self._highlight_query:
+            img = self._with_search_highlights(img, dpi)
         self._label.setPixmap(QPixmap.fromImage(img))
         self._label.resize(img.size())
+
+    def _with_search_highlights(self, img, dpi: int):
+        matches = self._renderer._doc.search_matches(self._idx, self._highlight_query)
+        if not matches:
+            return img
+        highlighted = img.copy()
+        scale = dpi / 72.0
+        painter = QPainter(highlighted)
+        painter.setPen(QPen(QColor(210, 150, 0, 220), 2))
+        painter.setBrush(QColor(255, 230, 0, 90))
+        for rect in matches:
+            painter.drawRect(
+                int(rect.x0 * scale),
+                int(rect.y0 * scale),
+                max(1, int(rect.width * scale)),
+                max(1, int(rect.height * scale)),
+            )
+        painter.end()
+        return highlighted
 
     def resizeEvent(self, event) -> None:  # noqa: N802 (Qt naming)
         super().resizeEvent(event)
