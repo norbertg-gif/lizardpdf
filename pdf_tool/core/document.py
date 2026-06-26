@@ -75,6 +75,14 @@ class PdfDocument:
         self._check_index(idx)
         return self.doc.load_page(idx)
 
+    def reload(self) -> None:
+        """Zahodí neuložené zmeny a znovu otvorí dokument z disku."""
+        if not self._path:
+            raise PdfError("Dokument ešte nebol uložený na disk.")
+        path = self._path
+        self.close()
+        self.open(path)
+
     # ------------------------------------------------------------------ #
     # Page operácie
     # ------------------------------------------------------------------ #
@@ -98,12 +106,10 @@ class PdfDocument:
 
     def move_page(self, src: int, dst: int) -> None:
         self._check_index(src)
-        # dst smie byť až page_count (vloženie na koniec)
         if not 0 <= dst <= self.page_count():
             raise PdfError(f"Neplatná cieľová pozícia: {dst}")
         if src == dst:
             return
-        # fitz: ``to`` musí byť v rozsahu -1..page_count-1; -1 = na koniec.
         to = -1 if dst >= self.page_count() else dst
         self.doc.move_page(src, to)
         self._mark_dirty()
@@ -143,6 +149,32 @@ class PdfDocument:
             other.close()
         self._mark_dirty()
 
+    def append_pdfs(self, paths: list[str]) -> int:
+        """Pripojí viac PDF na koniec aktuálneho dokumentu. Vracia počet strán."""
+        if not paths:
+            raise PdfError("Nie sú vybrané žiadne PDF súbory na spojenie.")
+
+        inserted = 0
+        for path in paths:
+            try:
+                other = fitz.open(path)
+            except Exception as exc:  # noqa: BLE001
+                raise PdfError(f"Súbor sa nepodarilo otvoriť: {path}: {exc}") from exc
+
+            try:
+                if other.needs_pass:
+                    raise PdfError(f"Dokument je chránený heslom: {path}")
+                if other.page_count == 0:
+                    continue
+                self.doc.insert_pdf(other, start_at=self.page_count())
+                inserted += other.page_count
+            finally:
+                other.close()
+
+        if inserted:
+            self._mark_dirty()
+        return inserted
+
     def extract_pages(self, indices: list[int], out_path: str) -> None:
         """Vyextrahuje vybrané stránky do nového PDF (v poradí ``indices``)."""
         if not indices:
@@ -156,6 +188,25 @@ class PdfDocument:
             new.save(out_path, garbage=4, deflate=True)
         finally:
             new.close()
+
+    def page_text(self, idx: int) -> str:
+        self._check_index(idx)
+        return self.doc.load_page(idx).get_text("text")
+
+    def search_text(self, query: str, start_idx: int = 0) -> int | None:
+        query = query.strip()
+        if not query:
+            raise PdfError("Zadajte text na hľadanie.")
+        count = self.page_count()
+        if count == 0:
+            return None
+        start_idx %= count
+        order = list(range(start_idx, count)) + list(range(0, start_idx))
+        needle = query.casefold()
+        for idx in order:
+            if needle in self.page_text(idx).casefold():
+                return idx
+        return None
 
     # ------------------------------------------------------------------ #
     # Metadata / stav
@@ -192,7 +243,6 @@ class PdfDocument:
         try:
             if optimize:
                 if same_file:
-                    # incremental sa nedá kombinovať s garbage > 0 → cez temp
                     self._save_via_temp(path, garbage=4, deflate=True)
                 else:
                     doc.save(path, garbage=4, deflate=True)
