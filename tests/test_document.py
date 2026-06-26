@@ -122,10 +122,35 @@ def test_metadata(sample):
 
 
 def test_page_text_and_search(sample):
+    assert sample.has_text()
     assert "Strana 2" in sample.page_text(1)
     assert sample.search_text("strana 3") == 2
     assert sample.search_text("strana 1", start_idx=1) == 0
     assert sample.search_text("nenajde-sa") is None
+
+
+def test_image_only_pdf_has_no_text(tmp_path):
+    text_pdf = tmp_path / "text.pdf"
+    image_pdf = tmp_path / "image.pdf"
+    _make_pdf(text_pdf, 1)
+
+    src = fitz.open(str(text_pdf))
+    pix = src[0].get_pixmap(dpi=120)
+    png = tmp_path / "page.png"
+    pix.save(str(png))
+    src.close()
+
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_image(page.rect, filename=str(png))
+    doc.save(str(image_pdf))
+    doc.close()
+
+    pdf = PdfDocument()
+    pdf.open(str(image_pdf))
+    assert not pdf.has_text()
+    assert pdf.search_text("Strana") is None
+    pdf.close()
 
 
 def test_save_as_clears_dirty(sample, tmp_path):
