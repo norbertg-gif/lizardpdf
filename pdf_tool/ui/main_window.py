@@ -380,6 +380,11 @@ class MainWindow(QMainWindow):
             self._error(str(exc))
             return
         if found is None:
+            if not self.document.has_text():
+                self.status.showMessage(
+                    "Dokument nemá extrahovateľnú textovú vrstvu.", 5000
+                )
+                return
             self.status.showMessage(f"Nenájdené: {self._last_search}", 4000)
             return
         self._goto(found)
@@ -394,6 +399,9 @@ class MainWindow(QMainWindow):
             text = self.document.page_text(self.page_view.current_index())
         except PdfError as exc:
             self._error(str(exc))
+            return
+        if not text.strip():
+            self.status.showMessage("Aktuálna stránka nemá extrahovateľný text.", 5000)
             return
         QApplication.clipboard().setText(text)
         self.status.showMessage("Text aktuálnej stránky je v schránke.", 4000)
