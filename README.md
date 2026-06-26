@@ -53,16 +53,35 @@ pip install pytest
 python -m pytest
 ```
 
-## Build (.exe)
+## Ikona
+
+Zdrojová ikona je `pdf_tool/assets/icon.png` (1024×1024). Pred Windows buildom
+sa z nej vygeneruje `icon.ico`:
 
 ```bash
-pip install pymupdf pyside6 pyinstaller
-pyinstaller build.spec
-# alebo:
-pyinstaller --onefile --windowed --name PdfTool main.py
+pip install pillow
+python tools/make_icon.py
 ```
 
-Výsledok: jediné `dist/PdfTool.exe`, beží na Windows bez inštalácie Pythonu.
+## Build (.exe)
+
+Windows `.exe` sa **musí** buildiť na Windowse (PyInstaller nevie
+cross-compilovať z Linuxu/macOS).
+
+```bash
+pip install -r requirements.txt
+pip install pyinstaller pillow
+python tools/make_icon.py        # vygeneruje icon.ico
+pyinstaller build.spec
+```
+
+Výsledok: jediné `dist/LizardPDF.exe`, beží na Windows bez inštalácie Pythonu.
+
+### Automatický build cez GitHub Actions
+
+Repo obsahuje workflow `.github/workflows/build-windows.yml`, ktorý pri každom
+pushi postaví `.exe` na `windows-latest`, spustí testy a priloží
+`LizardPDF.exe` ako artefakt (Actions → daný beh → Artifacts).
 
 ## Tech stack
 

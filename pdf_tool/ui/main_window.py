@@ -6,7 +6,7 @@ import os
 
 import fitz
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtGui import QAction, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QFileDialog,
     QInputDialog,
@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 from ..core.document import PdfDocument, PdfError
 from ..core.exporter import export_images
 from ..core.renderer import PageRenderer
+from ..resources import icon_path
 from .dialogs import ExportImagesDialog, InfoDialog, InsertPdfDialog
 from .page_view import FitMode, PageView
 from .thumbnail_panel import ThumbnailPanel
@@ -26,11 +27,20 @@ from .thumbnail_panel import ThumbnailPanel
 PDF_FILTER = "PDF súbory (*.pdf)"
 
 
+def app_icon() -> QIcon | None:
+    path = icon_path()
+    return QIcon(path) if path else None
+
+
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("LizardPDF")
         self.resize(1100, 760)
+
+        icon = app_icon()
+        if icon is not None:
+            self.setWindowIcon(icon)
 
         self.document = PdfDocument()
         self.renderer = PageRenderer(self.document)
