@@ -193,6 +193,9 @@ class PdfDocument:
         self._check_index(idx)
         return self.doc.load_page(idx).get_text("text")
 
+    def has_text(self) -> bool:
+        return any(self.page_text(idx).strip() for idx in range(self.page_count()))
+
     def search_text(self, query: str, start_idx: int = 0) -> int | None:
         query = query.strip()
         if not query:
@@ -204,7 +207,10 @@ class PdfDocument:
         order = list(range(start_idx, count)) + list(range(0, start_idx))
         needle = query.casefold()
         for idx in order:
-            if needle in self.page_text(idx).casefold():
+            page = self.doc.load_page(idx)
+            if page.search_for(query):
+                return idx
+            if needle in page.get_text("text").casefold():
                 return idx
         return None
 
