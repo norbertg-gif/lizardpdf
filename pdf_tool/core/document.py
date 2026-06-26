@@ -1,0 +1,225 @@
+"""PdfDocument — wrapper nad fitz, drží stav dokumentu v pamäti.
+
+Táto vrstva nepozná Qt. Všetky page-level operácie sa robia
+na in-memory ``fitz.Document``; na disk sa zapisuje až pri save().
+"""
+
+from __future__ import annotations
+
+import os
+
+import fitz  # PyMuPDF
+
+
+class PdfError(Exception):
+    """Chyba pri práci s PDF (poškodený súbor, zlé heslo, atď.)."""
+
+
+class PdfDocument:
+    def __init__(self) -> None:
+        self._doc: fitz.Document | None = None
+        self._path: str | None = None
+        self._dirty: bool = False
+
+    # ------------------------------------------------------------------ #
+    # Otvorenie / zatvorenie
+    # ------------------------------------------------------------------ #
+    def open(self, path: str, password: str | None = None) -> None:
+        """Otvorí PDF. Pri poškodenom/zamknutom súbore vyhodí PdfError."""
+        self.close()
+        try:
+            doc = fitz.open(path)
+        except Exception as exc:  # noqa: BLE001 — fitz hádže rôzne typy
+            raise PdfError(f"Súbor sa nepodarilo otvoriť: {exc}") from exc
+
+        if doc.needs_pass:
+            if password is None or not doc.authenticate(password):
+                doc.close()
+                raise PdfError("Dokument je chránený heslom.")
+
+        if doc.page_count == 0:
+            doc.close()
+            raise PdfError("Dokument neobsahuje žiadne stránky.")
+
+        self._doc = doc
+        self._path = path
+        self._dirty = False
+
+    def close(self) -> None:
+        if self._doc is not None:
+            self._doc.close()
+        self._doc = None
+        self._path = None
+        self._dirty = False
+
+    # ------------------------------------------------------------------ #
+    # Prístup
+    # ------------------------------------------------------------------ #
+    @property
+    def doc(self) -> fitz.Document:
+        if self._doc is None:
+            raise PdfError("Nie je otvorený žiadny dokument.")
+        return self._doc
+
+    @property
+    def path(self) -> str | None:
+        return self._path
+
+    def is_open(self) -> bool:
+        return self._doc is not None
+
+    def page_count(self) -> int:
+        return self.doc.page_count
+
+    def get_page(self, idx: int) -> fitz.Page:
+        self._check_index(idx)
+        return self.doc.load_page(idx)
+
+    # ------------------------------------------------------------------ #
+    # Page operácie
+    # ------------------------------------------------------------------ #
+    def rotate_page(self, idx: int, delta: int = 90) -> None:
+        self._check_index(idx)
+        page = self.doc.load_page(idx)
+        page.set_rotation((page.rotation + delta) % 360)
+        self._mark_dirty()
+
+    def rotate_all(self, delta: int = 90) -> None:
+        for page in self.doc:
+            page.set_rotation((page.rotation + delta) % 360)
+        self._mark_dirty()
+
+    def delete_page(self, idx: int) -> None:
+        self._check_index(idx)
+        if self.page_count() <= 1:
+            raise PdfError("Nedá sa odstrániť posledná stránka dokumentu.")
+        self.doc.delete_page(idx)
+        self._mark_dirty()
+
+    def move_page(self, src: int, dst: int) -> None:
+        self._check_index(src)
+        # dst smie byť až page_count (vloženie na koniec)
+        if not 0 <= dst <= self.page_count():
+            raise PdfError(f"Neplatná cieľová pozícia: {dst}")
+        if src == dst:
+            return
+        # fitz: ``to`` musí byť v rozsahu -1..page_count-1; -1 = na koniec.
+        to = -1 if dst >= self.page_count() else dst
+        self.doc.move_page(src, to)
+        self._mark_dirty()
+
+    def duplicate_page(self, idx: int) -> None:
+        self._check_index(idx)
+        self.doc.fullcopy_page(idx)
+        self._mark_dirty()
+
+    def insert_pdf(
+        self,
+        path: str,
+        after_idx: int,
+        from_page: int | None = None,
+        to_page: int | None = None,
+        password: str | None = None,
+    ) -> None:
+        """Vloží iný PDF za stránku ``after_idx`` (voliteľne len rozsah)."""
+        try:
+            other = fitz.open(path)
+        except Exception as exc:  # noqa: BLE001
+            raise PdfError(f"Vkladaný súbor sa nepodarilo otvoriť: {exc}") from exc
+
+        try:
+            if other.needs_pass:
+                if password is None or not other.authenticate(password):
+                    raise PdfError("Vkladaný dokument je chránený heslom.")
+            fp = 0 if from_page is None else from_page
+            tp = other.page_count - 1 if to_page is None else to_page
+            self.doc.insert_pdf(
+                other,
+                from_page=fp,
+                to_page=tp,
+                start_at=after_idx + 1,
+            )
+        finally:
+            other.close()
+        self._mark_dirty()
+
+    def extract_pages(self, indices: list[int], out_path: str) -> None:
+        """Vyextrahuje vybrané stránky do nového PDF (v poradí ``indices``)."""
+        if not indices:
+            raise PdfError("Nie sú vybrané žiadne stránky na extrakciu.")
+        for idx in indices:
+            self._check_index(idx)
+        new = fitz.open()
+        try:
+            for idx in indices:
+                new.insert_pdf(self.doc, from_page=idx, to_page=idx)
+            new.save(out_path, garbage=4, deflate=True)
+        finally:
+            new.close()
+
+    # ------------------------------------------------------------------ #
+    # Metadata / stav
+    # ------------------------------------------------------------------ #
+    def metadata(self) -> dict:
+        doc = self.doc
+        sizes = []
+        for page in doc:
+            rect = page.rect
+            sizes.append((round(rect.width, 1), round(rect.height, 1)))
+
+        file_size = None
+        if self._path and os.path.exists(self._path):
+            file_size = os.path.getsize(self._path)
+
+        return {
+            "path": self._path,
+            "page_count": doc.page_count,
+            "page_sizes": sizes,
+            "file_size": file_size,
+            "metadata": dict(doc.metadata or {}),
+        }
+
+    def is_dirty(self) -> bool:
+        return self._dirty
+
+    # ------------------------------------------------------------------ #
+    # Ukladanie
+    # ------------------------------------------------------------------ #
+    def save(self, path: str, optimize: bool = False) -> None:
+        doc = self.doc
+        same_file = self._path is not None and os.path.abspath(path) == os.path.abspath(self._path)
+
+        try:
+            if optimize:
+                if same_file:
+                    # incremental sa nedá kombinovať s garbage > 0 → cez temp
+                    self._save_via_temp(path, garbage=4, deflate=True)
+                else:
+                    doc.save(path, garbage=4, deflate=True)
+            else:
+                if same_file:
+                    doc.save(path, incremental=True, encryption=fitz.PDF_ENCRYPT_KEEP)
+                else:
+                    doc.save(path)
+        except Exception as exc:  # noqa: BLE001
+            raise PdfError(f"Uloženie zlyhalo: {exc}") from exc
+
+        self._path = path
+        self._dirty = False
+
+    def _save_via_temp(self, path: str, **opts) -> None:
+        tmp = path + ".tmp_save"
+        self.doc.save(tmp, **opts)
+        self.doc.close()
+        os.replace(tmp, path)
+        self._doc = fitz.open(path)
+
+    # ------------------------------------------------------------------ #
+    # Pomocné
+    # ------------------------------------------------------------------ #
+    def _check_index(self, idx: int) -> None:
+        if not 0 <= idx < self.page_count():
+            raise PdfError(f"Neplatný index stránky: {idx}")
+
+    def _mark_dirty(self) -> None:
+        self._dirty = True
