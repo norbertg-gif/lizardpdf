@@ -20,7 +20,7 @@ from ..core.document import PdfDocument, PdfError
 from ..core.exporter import export_images
 from ..core.renderer import PageRenderer
 from ..resources import icon_path
-from .dialogs import ExportImagesDialog, InfoDialog, InsertPdfDialog
+from .dialogs import AboutDialog, ExportImagesDialog, InfoDialog, InsertPdfDialog
 from .page_view import FitMode, PageView
 from .thumbnail_panel import ThumbnailPanel
 
@@ -143,6 +143,9 @@ class MainWindow(QMainWindow):
         self.act_info = QAction("Info o dokumente…", self)
         self.act_info.triggered.connect(self.show_info)
 
+        self.act_about = QAction("O programe…", self)
+        self.act_about.triggered.connect(self.show_about)
+
     def _build_menu(self) -> None:
         m = self.menuBar()
         file_menu = m.addMenu("Súbor")
@@ -177,6 +180,9 @@ class MainWindow(QMainWindow):
         page_menu.addAction(self.act_insert)
         page_menu.addAction(self.act_extract)
         page_menu.addAction(self.act_export)
+
+        help_menu = m.addMenu("Pomocník")
+        help_menu.addAction(self.act_about)
 
     def _build_toolbar(self) -> None:
         tb = self.addToolBar("Hlavný panel")
@@ -459,6 +465,9 @@ class MainWindow(QMainWindow):
         if not self.document.is_open():
             return
         InfoDialog(self, info=self.document.metadata()).exec()
+
+    def show_about(self) -> None:
+        AboutDialog(self).exec()
 
     # ================================================================== #
     # Pomocné

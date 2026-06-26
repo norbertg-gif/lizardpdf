@@ -1,18 +1,24 @@
-"""Dialógy — export obrázkov, vloženie PDF, info o dokumente."""
+"""Dialógy — export obrázkov, vloženie PDF, info o dokumente, o programe."""
 
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QHBoxLayout,
     QLabel,
     QRadioButton,
     QSpinBox,
     QTextEdit,
     QVBoxLayout,
 )
+
+from .. import __version__
+from ..resources import icon_path
 
 
 class ExportImagesDialog(QDialog):
@@ -156,3 +162,60 @@ class InfoDialog(QDialog):
                 if val:
                     lines.append(f"   {key}: {val}")
         return "\n".join(lines)
+
+
+class AboutDialog(QDialog):
+    """O programe — názov, verzia, autor, použité technológie."""
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("O programe LizardPDF")
+        self.setMinimumWidth(420)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(12)
+
+        # logo + názov vedľa seba
+        header = QHBoxLayout()
+        header.setSpacing(16)
+
+        logo = QLabel()
+        path = icon_path()
+        if path:
+            pix = QPixmap(path).scaled(
+                96,
+                96,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            logo.setPixmap(pix)
+        header.addWidget(logo, 0, Qt.AlignmentFlag.AlignTop)
+
+        title = QLabel(
+            f"<h2 style='margin:0'>LizardPDF</h2>"
+            f"<p style='margin:2px 0'>Verzia {__version__}</p>"
+            f"<p style='margin:2px 0;color:gray'>Ľahká utilita na prezeranie "
+            f"a editáciu PDF na úrovni stránok.</p>"
+        )
+        title.setTextFormat(Qt.TextFormat.RichText)
+        title.setWordWrap(True)
+        header.addWidget(title, 1)
+        layout.addLayout(header)
+
+        info = QLabel(
+            "<hr>"
+            "<p><b>Vibecoded by DigitalDreams</b></p>"
+            "<p style='color:gray'>Postavené na Pythone, PySide6 (Qt) "
+            "a PyMuPDF.</p>"
+            "<p style='color:gray'>© 2026 DigitalDreams. Všetky práva "
+            "vyhradené.</p>"
+        )
+        info.setTextFormat(Qt.TextFormat.RichText)
+        info.setWordWrap(True)
+        info.setOpenExternalLinks(True)
+        layout.addWidget(info)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(self.reject)
+        buttons.accepted.connect(self.accept)
+        layout.addWidget(buttons)
