@@ -380,6 +380,7 @@ class MainWindow(QMainWindow):
             self._error(str(exc))
             return
         if found is None:
+            self.page_view.set_highlight_query("")
             if not self.document.has_text():
                 self.status.showMessage(
                     "Dokument nemá extrahovateľnú textovú vrstvu.", 5000
@@ -387,6 +388,7 @@ class MainWindow(QMainWindow):
                 return
             self.status.showMessage(f"Nenájdené: {self._last_search}", 4000)
             return
+        self.page_view.set_highlight_query(self._last_search)
         self._goto(found)
         self.status.showMessage(
             f"Nájdené na strane {found + 1}: {self._last_search}", 4000
