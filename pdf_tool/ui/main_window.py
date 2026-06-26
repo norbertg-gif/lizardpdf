@@ -61,6 +61,8 @@ class MainWindow(QMainWindow):
         self.status.addPermanentWidget(self._page_label)
 
         self.thumbnails.page_selected.connect(self._on_thumb_selected)
+        self.page_view.previous_page_requested.connect(self.prev_page)
+        self.page_view.next_page_requested.connect(self.next_page)
 
         self._build_actions()
         self._build_menu()
@@ -241,8 +243,8 @@ class MainWindow(QMainWindow):
                 self._error(str(exc))
                 return
         self.renderer.invalidate()
-        self.thumbnails.rebuild()
         self.page_view.set_page(0)
+        self.thumbnails.rebuild()
         self.thumbnails.set_current(0)
         self._update_actions_enabled()
         self._update_title()
