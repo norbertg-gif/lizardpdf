@@ -8,6 +8,7 @@ import fitz
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QIcon, QKeySequence
 from PySide6.QtWidgets import (
+    QApplication,
     QFileDialog,
     QInputDialog,
     QLabel,
@@ -44,6 +45,7 @@ class MainWindow(QMainWindow):
 
         self.document = PdfDocument()
         self.renderer = PageRenderer(self.document)
+        self._last_search = ""
 
         self.thumbnails = ThumbnailPanel(self.renderer)
         self.page_view = PageView(self.renderer)
@@ -89,6 +91,9 @@ class MainWindow(QMainWindow):
         self.act_save_opt = QAction("Uložiť ako (optimalizované)…", self)
         self.act_save_opt.triggered.connect(lambda: self.save_file_as(optimize=True))
 
+        self.act_revert = QAction("Vrátiť posledne uložené", self)
+        self.act_revert.triggered.connect(self.revert_to_saved)
+
         self.act_quit = QAction("Koniec", self)
         self.act_quit.setShortcut(QKeySequence.StandardKey.Quit)
         self.act_quit.triggered.connect(self.close)
@@ -116,6 +121,15 @@ class MainWindow(QMainWindow):
         self.act_fit_page.triggered.connect(
             lambda: self.page_view.set_fit_mode(FitMode.FIT_PAGE)
         )
+        self.act_find = QAction("Hľadať text…", self)
+        self.act_find.setShortcut(QKeySequence.StandardKey.Find)
+        self.act_find.triggered.connect(self.find_text)
+        self.act_find_next = QAction("Hľadať ďalej", self)
+        self.act_find_next.setShortcut(QKeySequence.StandardKey.FindNext)
+        self.act_find_next.triggered.connect(self.find_next)
+        self.act_copy_text = QAction("Kopírovať text stránky", self)
+        self.act_copy_text.setShortcut(QKeySequence.StandardKey.Copy)
+        self.act_copy_text.triggered.connect(self.copy_current_page_text)
 
         # page operácie
         self.act_rotate = QAction("Otočiť o 90°", self)
@@ -137,6 +151,8 @@ class MainWindow(QMainWindow):
 
         self.act_insert = QAction("Vložiť PDF…", self)
         self.act_insert.triggered.connect(self.insert_pdf)
+        self.act_merge = QAction("Pripojiť viac PDF…", self)
+        self.act_merge.triggered.connect(self.merge_pdfs)
         self.act_extract = QAction("Extrahovať vybrané…", self)
         self.act_extract.triggered.connect(self.extract_selected)
         self.act_export = QAction("Export do obrázkov…", self)
@@ -156,6 +172,7 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.act_save)
         file_menu.addAction(self.act_save_as)
         file_menu.addAction(self.act_save_opt)
+        file_menu.addAction(self.act_revert)
         file_menu.addSeparator()
         file_menu.addAction(self.act_info)
         file_menu.addSeparator()
@@ -169,6 +186,10 @@ class MainWindow(QMainWindow):
         view_menu.addAction(self.act_zoom_out)
         view_menu.addAction(self.act_fit_width)
         view_menu.addAction(self.act_fit_page)
+        view_menu.addSeparator()
+        view_menu.addAction(self.act_find)
+        view_menu.addAction(self.act_find_next)
+        view_menu.addAction(self.act_copy_text)
 
         page_menu = m.addMenu("Stránky")
         page_menu.addAction(self.act_rotate)
@@ -180,6 +201,7 @@ class MainWindow(QMainWindow):
         page_menu.addAction(self.act_delete)
         page_menu.addSeparator()
         page_menu.addAction(self.act_insert)
+        page_menu.addAction(self.act_merge)
         page_menu.addAction(self.act_extract)
         page_menu.addAction(self.act_export)
 
@@ -281,6 +303,33 @@ class MainWindow(QMainWindow):
         self._update_title()
         self.status.showMessage(f"Uložené: {path}", 4000)
 
+    def revert_to_saved(self) -> None:
+        if not self.document.is_open():
+            return
+        if not self.document.path:
+            self._error("Dokument ešte nebol uložený na disk.")
+            return
+        ans = QMessageBox.question(
+            self,
+            "Vrátiť zmeny",
+            "Zahodiť všetky neuložené zmeny a načítať posledne uložený súbor?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if ans != QMessageBox.StandardButton.Yes:
+            return
+        idx = self.page_view.current_index()
+        try:
+            self.document.reload()
+        except PdfError as exc:
+            self._error(str(exc))
+            return
+        self.renderer.invalidate()
+        self.thumbnails.rebuild()
+        self._goto(min(idx, self.document.page_count() - 1))
+        self._update_actions_enabled()
+        self._update_title()
+        self.status.showMessage("Obnovené z posledne uloženého súboru.", 4000)
+
     # ================================================================== #
     # Navigácia
     # ================================================================== #
@@ -304,6 +353,50 @@ class MainWindow(QMainWindow):
         self.page_view.set_page(idx)
         self.thumbnails.set_current(idx)
         self._update_status()
+
+    def find_text(self) -> None:
+        if not self.document.is_open():
+            return
+        text, ok = QInputDialog.getText(
+            self, "Hľadať text", "Text:", text=self._last_search
+        )
+        if not ok:
+            return
+        self._last_search = text.strip()
+        self._find_from(self.page_view.current_index())
+
+    def find_next(self) -> None:
+        if not self.document.is_open():
+            return
+        if not self._last_search:
+            self.find_text()
+            return
+        self._find_from(self.page_view.current_index() + 1)
+
+    def _find_from(self, start_idx: int) -> None:
+        try:
+            found = self.document.search_text(self._last_search, start_idx=start_idx)
+        except PdfError as exc:
+            self._error(str(exc))
+            return
+        if found is None:
+            self.status.showMessage(f"Nenájdené: {self._last_search}", 4000)
+            return
+        self._goto(found)
+        self.status.showMessage(
+            f"Nájdené na strane {found + 1}: {self._last_search}", 4000
+        )
+
+    def copy_current_page_text(self) -> None:
+        if not self.document.is_open():
+            return
+        try:
+            text = self.document.page_text(self.page_view.current_index())
+        except PdfError as exc:
+            self._error(str(exc))
+            return
+        QApplication.clipboard().setText(text)
+        self.status.showMessage("Text aktuálnej stránky je v schránke.", 4000)
 
     # ================================================================== #
     # Page operácie
@@ -415,6 +508,25 @@ class MainWindow(QMainWindow):
         self._goto(after_idx + 1)
         self._after_mutation()
 
+    def merge_pdfs(self) -> None:
+        if not self._guard():
+            return
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "Pripojiť PDF súbory", "", PDF_FILTER
+        )
+        if not paths:
+            return
+        try:
+            inserted = self.document.append_pdfs(paths)
+        except PdfError as exc:
+            self._error(str(exc))
+            return
+        self.renderer.invalidate()
+        self.thumbnails.rebuild()
+        self.page_view.refresh()
+        self._after_mutation()
+        self.status.showMessage(f"Pripojených {inserted} strán.", 4000)
+
     def extract_selected(self) -> None:
         if not self.document.is_open():
             return
@@ -487,6 +599,7 @@ class MainWindow(QMainWindow):
             self.act_save,
             self.act_save_as,
             self.act_save_opt,
+            self.act_revert,
             self.act_info,
             self.act_prev,
             self.act_next,
@@ -494,6 +607,9 @@ class MainWindow(QMainWindow):
             self.act_zoom_out,
             self.act_fit_width,
             self.act_fit_page,
+            self.act_find,
+            self.act_find_next,
+            self.act_copy_text,
             self.act_rotate,
             self.act_rotate_all,
             self.act_delete,
@@ -501,6 +617,7 @@ class MainWindow(QMainWindow):
             self.act_move_down,
             self.act_duplicate,
             self.act_insert,
+            self.act_merge,
             self.act_extract,
             self.act_export,
         ):
