@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -182,12 +182,7 @@ class AboutDialog(QDialog):
         logo = QLabel()
         path = icon_path()
         if path:
-            pix = QPixmap(path).scaled(
-                96,
-                96,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
+            pix = QIcon(path).pixmap(96, 96)
             logo.setPixmap(pix)
         header.addWidget(logo, 0, Qt.AlignmentFlag.AlignTop)
 
