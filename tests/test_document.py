@@ -91,6 +91,17 @@ def test_insert_pdf_range(sample, tmp_path):
     assert sample.page_count() == 5  # 3 + 2
 
 
+def test_append_pdfs(sample, tmp_path):
+    one = tmp_path / "one.pdf"
+    two = tmp_path / "two.pdf"
+    _make_pdf(one, 2)
+    _make_pdf(two, 1)
+    inserted = sample.append_pdfs([str(one), str(two)])
+    assert inserted == 3
+    assert sample.page_count() == 6
+    assert sample.is_dirty()
+
+
 def test_extract_pages(sample, tmp_path):
     out = tmp_path / "extract.pdf"
     sample.extract_pages([0, 2], str(out))
@@ -108,6 +119,13 @@ def test_metadata(sample):
     meta = sample.metadata()
     assert meta["page_count"] == 3
     assert len(meta["page_sizes"]) == 3
+
+
+def test_page_text_and_search(sample):
+    assert "Strana 2" in sample.page_text(1)
+    assert sample.search_text("strana 3") == 2
+    assert sample.search_text("strana 1", start_idx=1) == 0
+    assert sample.search_text("nenajde-sa") is None
 
 
 def test_save_as_clears_dirty(sample, tmp_path):
@@ -129,6 +147,14 @@ def test_save_optimize_same_file(sample):
     assert not sample.is_dirty()
     assert sample.page_count() == 3
     assert sample.get_page(0).rotation == 90
+
+
+def test_reload_reverts_unsaved_changes(sample):
+    sample.delete_page(1)
+    assert sample.page_count() == 2
+    sample.reload()
+    assert sample.page_count() == 3
+    assert not sample.is_dirty()
 
 
 def test_bad_index(sample):
