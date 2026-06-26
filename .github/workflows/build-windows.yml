@@ -44,6 +44,18 @@ jobs:
           "LizardPDF.exe = {0:N1} MB" -f ($f.Length / 1MB)
         shell: pwsh
 
+      - name: Report largest bundled files
+        run: |
+          if (Test-Path build/LizardPDF) {
+            Get-ChildItem build/LizardPDF -Recurse -File |
+              Sort-Object Length -Descending |
+              Select-Object -First 30 @{Name="SizeMB";Expression={"{0:N2}" -f ($_.Length / 1MB)}}, FullName |
+              Format-Table -AutoSize
+          } else {
+            "No build/LizardPDF analysis directory found."
+          }
+        shell: pwsh
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
