@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from enum import Enum, auto
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QTimer, Qt, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QLabel, QScrollArea
 
@@ -20,6 +20,9 @@ class FitMode(Enum):
 class PageView(QScrollArea):
     """Scroll area s QLabel, ktorý drží vyrenderovanú stránku."""
 
+    previous_page_requested = Signal()
+    next_page_requested = Signal()
+
     def __init__(self, renderer: PageRenderer) -> None:
         super().__init__()
         self._renderer = renderer
@@ -27,6 +30,10 @@ class PageView(QScrollArea):
         self._zoom = 1.0  # násobok base DPI pre CUSTOM
         self._fit_mode = FitMode.FIT_WIDTH
         self._base_dpi = 96
+        self._resize_timer = QTimer(self)
+        self._resize_timer.setSingleShot(True)
+        self._resize_timer.setInterval(120)
+        self._resize_timer.timeout.connect(self.refresh)
 
         self._label = QLabel()
         self._label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -103,4 +110,21 @@ class PageView(QScrollArea):
     def resizeEvent(self, event) -> None:  # noqa: N802 (Qt naming)
         super().resizeEvent(event)
         if self._fit_mode != FitMode.CUSTOM:
-            self.refresh()
+            self._resize_timer.start()
+
+    def wheelEvent(self, event) -> None:  # noqa: N802 (Qt naming)
+        bar = self.verticalScrollBar()
+        delta = event.angleDelta().y()
+        at_top = bar.value() <= bar.minimum()
+        at_bottom = bar.value() >= bar.maximum()
+
+        if delta > 0 and at_top:
+            self.previous_page_requested.emit()
+            event.accept()
+            return
+        if delta < 0 and at_bottom:
+            self.next_page_requested.emit()
+            event.accept()
+            return
+
+        super().wheelEvent(event)
