@@ -124,6 +124,7 @@ def test_metadata(sample):
 def test_page_text_and_search(sample):
     assert sample.has_text()
     assert "Strana 2" in sample.page_text(1)
+    assert sample.search_matches(1, "Strana")
     assert sample.search_text("strana 3") == 2
     assert sample.search_text("strana 1", start_idx=1) == 0
     assert sample.search_text("nenajde-sa") is None
