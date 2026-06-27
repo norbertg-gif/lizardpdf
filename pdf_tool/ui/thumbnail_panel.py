@@ -18,13 +18,55 @@ class ThumbnailPanel(QListWidget):
         super().__init__()
         self._renderer = renderer
         self.setIconSize(QSize(120, 160))
+        self.setFixedWidth(158)
         self.setViewMode(QListWidget.ViewMode.IconMode)
         self.setResizeMode(QListWidget.ResizeMode.Adjust)
         self.setMovement(QListWidget.Movement.Static)
-        self.setSpacing(6)
+        self.setSpacing(8)
         self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.setUniformItemSizes(True)
         self.setWordWrap(True)
+        self.setStyleSheet(
+            """
+            QListWidget {
+                background: #ffffff;
+                border: 0;
+                border-right: 1px solid #e4e8ec;
+                padding: 10px 8px;
+                color: #6f7a84;
+            }
+            QListWidget::item {
+                border: 1px solid transparent;
+                border-radius: 4px;
+                padding: 4px;
+            }
+            QListWidget::item:hover {
+                background: #f3f6f8;
+                border-color: #dce3e8;
+            }
+            QListWidget::item:selected {
+                background: #f3fbf7;
+                border: 1px solid #1ea672;
+                color: #15845b;
+            }
+            QScrollBar:vertical {
+                background: transparent;
+                border: 0;
+                width: 8px;
+            }
+            QScrollBar::handle:vertical {
+                background: #b8c0c8;
+                border-radius: 4px;
+                min-height: 36px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #98a3ad;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0;
+            }
+            """
+        )
         self._rendered: set[int] = set()
         self._render_timer = QTimer(self)
         self._render_timer.setSingleShot(True)
@@ -47,7 +89,7 @@ class ThumbnailPanel(QListWidget):
         for idx in range(count):
             item = QListWidgetItem(f"{idx + 1}")
             item.setTextAlignment(Qt.AlignmentFlag.AlignHCenter)
-            item.setSizeHint(QSize(150, 190))
+            item.setSizeHint(QSize(132, 184))
             self.addItem(item)
         self.blockSignals(False)
         if 0 <= prev < count:
