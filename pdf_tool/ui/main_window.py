@@ -5,16 +5,22 @@ from __future__ import annotations
 import os
 
 import fitz
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QAction, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
+    QFrame,
+    QHBoxLayout,
     QInputDialog,
     QLabel,
     QMainWindow,
     QMessageBox,
     QSplitter,
+    QStyle,
+    QToolBar,
+    QVBoxLayout,
+    QWidget,
 )
 
 from ..core.document import PdfDocument, PdfError
@@ -49,14 +55,34 @@ class MainWindow(QMainWindow):
 
         self.thumbnails = ThumbnailPanel(self.renderer)
         self.page_view = PageView(self.renderer)
+        self._doc_label = QLabel("Žiadny dokument")
+        self._doc_label.setObjectName("documentTitle")
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.setObjectName("documentSplitter")
         splitter.addWidget(self.thumbnails)
         splitter.addWidget(self.page_view)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
-        splitter.setSizes([220, 880])
-        self.setCentralWidget(splitter)
+        splitter.setSizes([170, 930])
+
+        topbar = QFrame()
+        topbar.setObjectName("topbar")
+        topbar_layout = QHBoxLayout(topbar)
+        topbar_layout.setContentsMargins(16, 0, 16, 0)
+        topbar_layout.setSpacing(8)
+        crumb = QLabel("Dokumenty /")
+        crumb.setObjectName("breadcrumb")
+        topbar_layout.addWidget(crumb)
+        topbar_layout.addWidget(self._doc_label, 1)
+
+        central = QWidget()
+        central_layout = QVBoxLayout(central)
+        central_layout.setContentsMargins(0, 0, 0, 0)
+        central_layout.setSpacing(0)
+        central_layout.addWidget(topbar)
+        central_layout.addWidget(splitter, 1)
+        self.setCentralWidget(central)
 
         self.status = self.statusBar()
         self._page_label = QLabel("")
@@ -69,7 +95,9 @@ class MainWindow(QMainWindow):
         self._build_actions()
         self._build_menu()
         self._build_toolbar()
+        self._apply_style()
         self._update_actions_enabled()
+        self._update_title()
         self._update_status()
 
     # ================================================================== #
@@ -121,6 +149,9 @@ class MainWindow(QMainWindow):
         self.act_fit_page.triggered.connect(
             lambda: self.page_view.set_fit_mode(FitMode.FIT_PAGE)
         )
+
+        # page operácie
+        self.act_rotate = QAction("Otočiť o 90°", self)
         self.act_find = QAction("Hľadať text…", self)
         self.act_find.setShortcut(QKeySequence.StandardKey.Find)
         self.act_find.triggered.connect(self.find_text)
@@ -131,8 +162,6 @@ class MainWindow(QMainWindow):
         self.act_copy_text.setShortcut(QKeySequence.StandardKey.Copy)
         self.act_copy_text.triggered.connect(self.copy_current_page_text)
 
-        # page operácie
-        self.act_rotate = QAction("Otočiť o 90°", self)
         self.act_rotate.setShortcut(QKeySequence("Ctrl+R"))
         self.act_rotate.triggered.connect(self.rotate_current)
         self.act_rotate_all = QAction("Otočiť všetky o 90°", self)
@@ -209,8 +238,33 @@ class MainWindow(QMainWindow):
         help_menu.addAction(self.act_about)
 
     def _build_toolbar(self) -> None:
-        tb = self.addToolBar("Hlavný panel")
+        tb = QToolBar("Nástroje", self)
         tb.setMovable(False)
+        tb.setFloatable(False)
+        tb.setIconSize(QSize(20, 20))
+        tb.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.addToolBar(Qt.ToolBarArea.LeftToolBarArea, tb)
+
+        style = self.style()
+        icons = {
+            self.act_open: QStyle.StandardPixmap.SP_DialogOpenButton,
+            self.act_save: QStyle.StandardPixmap.SP_DialogSaveButton,
+            self.act_prev: QStyle.StandardPixmap.SP_ArrowBack,
+            self.act_next: QStyle.StandardPixmap.SP_ArrowForward,
+            self.act_zoom_out: QStyle.StandardPixmap.SP_ArrowDown,
+            self.act_zoom_in: QStyle.StandardPixmap.SP_ArrowUp,
+            self.act_fit_width: QStyle.StandardPixmap.SP_ArrowLeft,
+            self.act_fit_page: QStyle.StandardPixmap.SP_DialogApplyButton,
+            self.act_rotate: QStyle.StandardPixmap.SP_BrowserReload,
+            self.act_delete: QStyle.StandardPixmap.SP_TrashIcon,
+            self.act_insert: QStyle.StandardPixmap.SP_FileDialogNewFolder,
+            self.act_extract: QStyle.StandardPixmap.SP_DialogSaveButton,
+            self.act_export: QStyle.StandardPixmap.SP_DriveHDIcon,
+        }
+        for act, pixmap in icons.items():
+            act.setIcon(style.standardIcon(pixmap))
+            act.setToolTip(act.text().replace("&", ""))
+
         for act in (
             self.act_open,
             self.act_save,
@@ -234,6 +288,74 @@ class MainWindow(QMainWindow):
                 tb.addSeparator()
             else:
                 tb.addAction(act)
+
+    def _apply_style(self) -> None:
+        self.setStyleSheet(
+            """
+            QMainWindow {
+                background: #f4f6f7;
+            }
+            QMenuBar {
+                background: #ffffff;
+                border-bottom: 1px solid #e6eaee;
+                padding: 2px 8px;
+            }
+            QMenuBar::item {
+                padding: 5px 10px;
+                border-radius: 5px;
+            }
+            QMenuBar::item:selected {
+                background: #eef3f1;
+            }
+            QFrame#topbar {
+                min-height: 42px;
+                max-height: 42px;
+                background: #ffffff;
+                border-bottom: 1px solid #e4e8ec;
+            }
+            QLabel#breadcrumb {
+                color: #77818c;
+                font-size: 12px;
+            }
+            QLabel#documentTitle {
+                color: #2c333a;
+                font-weight: 600;
+            }
+            QToolBar {
+                background: #ffffff;
+                border-right: 1px solid #e4e8ec;
+                spacing: 4px;
+                padding: 8px 6px;
+            }
+            QToolBar::separator {
+                background: #e4e8ec;
+                height: 1px;
+                margin: 6px 8px;
+            }
+            QToolButton {
+                border: 0;
+                border-radius: 7px;
+                padding: 7px;
+                min-width: 30px;
+                min-height: 30px;
+            }
+            QToolButton:hover {
+                background: #eef3f1;
+            }
+            QToolButton:pressed {
+                background: #dff3ea;
+            }
+            QStatusBar {
+                background: #ffffff;
+                border-top: 1px solid #e4e8ec;
+                color: #68737d;
+            }
+            QSplitter#documentSplitter::handle {
+                background: #edf0f3;
+                width: 1px;
+            }
+            """
+        )
 
     # ================================================================== #
     # Súbor
@@ -303,6 +425,9 @@ class MainWindow(QMainWindow):
         self._update_title()
         self.status.showMessage(f"Uložené: {path}", 4000)
 
+    # ================================================================== #
+    # Navigácia
+    # ================================================================== #
     def revert_to_saved(self) -> None:
         if not self.document.is_open():
             return
@@ -311,7 +436,7 @@ class MainWindow(QMainWindow):
             return
         ans = QMessageBox.question(
             self,
-            "Vrátiť zmeny",
+            "Revert",
             "Zahodiť všetky neuložené zmeny a načítať posledne uložený súbor?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
@@ -330,9 +455,6 @@ class MainWindow(QMainWindow):
         self._update_title()
         self.status.showMessage("Obnovené z posledne uloženého súboru.", 4000)
 
-    # ================================================================== #
-    # Navigácia
-    # ================================================================== #
     def _on_thumb_selected(self, idx: int) -> None:
         self.page_view.set_page(idx)
         self._update_status()
@@ -357,9 +479,7 @@ class MainWindow(QMainWindow):
     def find_text(self) -> None:
         if not self.document.is_open():
             return
-        text, ok = QInputDialog.getText(
-            self, "Hľadať text", "Text:", text=self._last_search
-        )
+        text, ok = QInputDialog.getText(self, "Hľadať text", "Text:", text=self._last_search)
         if not ok:
             return
         self._last_search = text.strip()
@@ -382,17 +502,13 @@ class MainWindow(QMainWindow):
         if found is None:
             self.page_view.set_highlight_query("")
             if not self.document.has_text():
-                self.status.showMessage(
-                    "Dokument nemá extrahovateľnú textovú vrstvu.", 5000
-                )
+                self.status.showMessage("Dokument nemá extrahovateľnú textovú vrstvu.", 5000)
                 return
             self.status.showMessage(f"Nenájdené: {self._last_search}", 4000)
             return
         self.page_view.set_highlight_query(self._last_search)
         self._goto(found)
-        self.status.showMessage(
-            f"Nájdené na strane {found + 1}: {self._last_search}", 4000
-        )
+        self.status.showMessage(f"Nájdené na strane {found + 1}: {self._last_search}", 4000)
 
     def copy_current_page_text(self) -> None:
         if not self.document.is_open():
@@ -639,8 +755,10 @@ class MainWindow(QMainWindow):
             name = os.path.basename(self.document.path)
             dirty = " *" if self.document.is_dirty() else ""
             self.setWindowTitle(f"{name}{dirty} — {base}")
+            self._doc_label.setText(f"{name}{dirty}")
         else:
             self.setWindowTitle(base)
+            self._doc_label.setText("Žiadny dokument")
 
     def _update_status(self) -> None:
         if self.document.is_open():
