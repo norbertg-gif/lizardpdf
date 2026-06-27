@@ -1,5 +1,7 @@
 # LizardPDF
 
+Aktuálna verzia: **1.1.0**
+
 Ľahká Windows utilita na prezeranie a page-level editáciu PDF. Cieľ: rýchle,
 jednoduché, žiadne ťažké SDK. Nie je to Adobe Reader.
 
