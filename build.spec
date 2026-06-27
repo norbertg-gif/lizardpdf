@@ -1,4 +1,4 @@
-# PyInstaller spec — build do jedného LizardPDF.exe, optimalizovaný na veľkosť
+# PyInstaller spec — build do priečinka dist/LizardPDF, optimalizovaný na štart a veľkosť
 # Build:  pyinstaller build.spec
 #
 # Pred buildom na Windowse sa z pdf_tool/assets/icon.png vygeneruje icon.ico
@@ -13,7 +13,7 @@ ASSETS = os.path.join("pdf_tool", "assets")
 ICON_ICO = os.path.join(ASSETS, "icon.ico")
 
 # Runtime potrebuje iba malú .ico ikonu. Veľké zdrojové icon.png ostáva
-# v repozitári kvôli regenerovaniu, ale do .exe sa nebalí.
+# v repozitári kvôli regenerovaniu, ale do app priečinka sa nebalí.
 datas = []
 if os.path.exists(ICON_ICO):
     datas.append((ICON_ICO, "assets"))
@@ -158,8 +158,6 @@ upx_exclude = [
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
     name="LizardPDF",
     debug=False,
@@ -170,4 +168,14 @@ exe = EXE(
     runtime_tmpdir=None,
     console=False,  # --windowed
     icon=ICON_ICO if os.path.exists(ICON_ICO) else None,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=upx_exclude,
+    name="LizardPDF",
 )
