@@ -6,7 +6,7 @@ from enum import Enum, auto
 
 from PySide6.QtCore import QTimer, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
-from PySide6.QtWidgets import QLabel, QScrollArea
+from PySide6.QtWidgets import QGraphicsDropShadowEffect, QLabel, QScrollArea
 
 from ..core.renderer import PageRenderer
 
@@ -38,10 +38,43 @@ class PageView(QScrollArea):
         self._resize_timer.timeout.connect(self.refresh)
 
         self._label = QLabel()
+        self.setObjectName("pageView")
+        self._label.setObjectName("pageImage")
         self._label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._label.setStyleSheet("background: #ffffff;")
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(26)
+        shadow.setOffset(0, 6)
+        shadow.setColor(QColor(0, 0, 0, 45))
+        self._label.setGraphicsEffect(shadow)
         self.setWidget(self._label)
         self.setWidgetResizable(True)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setStyleSheet(
+            """
+            QScrollArea#pageView {
+                background: #e9edf1;
+                border: 0;
+            }
+            QScrollBar:vertical, QScrollBar:horizontal {
+                background: transparent;
+                border: 0;
+            }
+            QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
+                background: #b8c0c8;
+                border-radius: 4px;
+                min-height: 36px;
+                min-width: 36px;
+            }
+            QScrollBar::handle:hover {
+                background: #98a3ad;
+            }
+            QScrollBar::add-line, QScrollBar::sub-line {
+                width: 0;
+                height: 0;
+            }
+            """
+        )
 
     # ------------------------------------------------------------------ #
     def set_page(self, idx: int) -> None:
