@@ -35,24 +35,27 @@ jobs:
           pip install pytest
           python -m pytest -q
 
-      - name: Build LizardPDF.exe
+      - name: Build LizardPDF app folder
         run: pyinstaller build.spec
 
-      - name: Report exe size
+      - name: Report app folder size
         run: |
-          $f = Get-Item dist/LizardPDF.exe
-          "LizardPDF.exe = {0:N1} MB" -f ($f.Length / 1MB)
+          $dir = Get-Item dist/LizardPDF
+          $exe = Get-Item dist/LizardPDF/LizardPDF.exe
+          $total = (Get-ChildItem $dir -Recurse -File | Measure-Object Length -Sum).Sum
+          "LizardPDF folder = {0:N1} MB" -f ($total / 1MB)
+          "LizardPDF.exe = {0:N1} MB" -f ($exe.Length / 1MB)
         shell: pwsh
 
       - name: Report largest bundled files
         run: |
-          if (Test-Path build/LizardPDF) {
-            Get-ChildItem build/LizardPDF -Recurse -File |
+          if (Test-Path dist/LizardPDF) {
+            Get-ChildItem dist/LizardPDF -Recurse -File |
               Sort-Object Length -Descending |
               Select-Object -First 30 @{Name="SizeMB";Expression={"{0:N2}" -f ($_.Length / 1MB)}}, FullName |
               Format-Table -AutoSize
           } else {
-            "No build/LizardPDF analysis directory found."
+            "No dist/LizardPDF directory found."
           }
         shell: pwsh
 
@@ -60,5 +63,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: LizardPDF-windows
-          path: dist/LizardPDF.exe
+          path: dist/LizardPDF
           if-no-files-found: error
