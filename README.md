@@ -65,8 +65,8 @@ python tools/make_icon.py
 
 ## Build (.exe)
 
-Windows `.exe` sa **musí** buildiť na Windowse (PyInstaller nevie
-cross-compilovať z Linuxu/macOS).
+Windows build sa **musí** robiť na Windowse (PyInstaller nevie cross-compilovať
+z Linuxu/macOS).
 
 ```bash
 pip install -r requirements.txt
@@ -75,13 +75,14 @@ python tools/make_icon.py        # vygeneruje icon.ico
 pyinstaller build.spec
 ```
 
-Výsledok: jediné `dist/LizardPDF.exe`, beží na Windows bez inštalácie Pythonu.
+Výsledok: priečinok `dist/LizardPDF/` s `LizardPDF.exe`, beží na Windows bez
+inštalácie Pythonu.
 
 ### Automatický build cez GitHub Actions
 
 Repo obsahuje workflow `.github/workflows/build-windows.yml`, ktorý pri každom
-pushi postaví `.exe` na `windows-latest`, spustí testy a priloží
-`LizardPDF.exe` ako artefakt (Actions → daný beh → Artifacts).
+pushi postaví app priečinok na `windows-latest`, spustí testy a priloží
+`LizardPDF-windows` ako artefakt (Actions → daný beh → Artifacts).
 
 ## Tech stack
 
