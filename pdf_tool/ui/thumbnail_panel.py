@@ -18,7 +18,7 @@ class ThumbnailPanel(QListWidget):
         super().__init__()
         self._renderer = renderer
         self.setIconSize(QSize(120, 160))
-        self.setFixedWidth(158)
+        self.setMinimumWidth(126)
         self.setViewMode(QListWidget.ViewMode.IconMode)
         self.setResizeMode(QListWidget.ResizeMode.Adjust)
         self.setMovement(QListWidget.Movement.Static)

@@ -71,6 +71,8 @@ class MainWindow(QMainWindow):
         splitter.addWidget(self.page_view)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
+        splitter.setChildrenCollapsible(False)
+        splitter.setHandleWidth(6)
         splitter.setSizes([170, 930])
 
         topbar = QFrame()
@@ -366,7 +368,10 @@ class MainWindow(QMainWindow):
             }
             QSplitter#documentSplitter::handle {
                 background: #edf0f3;
-                width: 1px;
+                width: 6px;
+            }
+            QSplitter#documentSplitter::handle:hover {
+                background: #cfd8df;
             }
             """
         )
