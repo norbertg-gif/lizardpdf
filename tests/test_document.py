@@ -51,9 +51,27 @@ def test_rotate_all(sample):
         assert page.rotation == 90
 
 
+def test_rotate_pages(sample):
+    sample.rotate_pages([0, 2], 90)
+    assert sample.get_page(0).rotation == 90
+    assert sample.get_page(1).rotation == 0
+    assert sample.get_page(2).rotation == 90
+
+
 def test_delete_page(sample):
     sample.delete_page(1)
     assert sample.page_count() == 2
+
+
+def test_delete_pages(sample):
+    sample.delete_pages([0, 2])
+    assert sample.page_count() == 1
+    assert "Strana 2" in sample.page_text(0)
+
+
+def test_delete_all_pages_blocked(sample):
+    with pytest.raises(PdfError):
+        sample.delete_pages([0, 1, 2])
 
 
 def test_delete_last_remaining_blocked(tmp_path):
@@ -72,9 +90,33 @@ def test_move_page(sample):
     assert sample.page_count() == 3
 
 
+def test_move_pages_up(sample):
+    moved = sample.move_pages([1, 2], -1)
+    assert moved == [0, 1]
+    assert "Strana 2" in sample.page_text(0)
+    assert "Strana 3" in sample.page_text(1)
+    assert "Strana 1" in sample.page_text(2)
+
+
+def test_move_pages_down(sample):
+    moved = sample.move_pages([0, 1], 1)
+    assert moved == [1, 2]
+    assert "Strana 3" in sample.page_text(0)
+    assert "Strana 1" in sample.page_text(1)
+    assert "Strana 2" in sample.page_text(2)
+
+
 def test_duplicate_page(sample):
     sample.duplicate_page(0)
     assert sample.page_count() == 4
+
+
+def test_duplicate_pages(sample):
+    new_indices = sample.duplicate_pages([0, 2])
+    assert new_indices == [3, 4]
+    assert sample.page_count() == 5
+    assert "Strana 1" in sample.page_text(3)
+    assert "Strana 3" in sample.page_text(4)
 
 
 def test_insert_pdf(sample, tmp_path):

@@ -549,10 +549,10 @@ class MainWindow(QMainWindow):
     def rotate_current(self) -> None:
         if not self._guard():
             return
-        idx = self.page_view.current_index()
-        self.document.rotate_page(idx, 90)
-        self.renderer.invalidate(idx)
-        self.thumbnails.refresh_item(idx)
+        indices = self._target_page_indices()
+        self.document.rotate_pages(indices, 90)
+        self.renderer.invalidate()
+        self.thumbnails.rebuild()
         self.page_view.refresh()
         self._after_mutation()
 
@@ -568,45 +568,51 @@ class MainWindow(QMainWindow):
     def delete_current(self) -> None:
         if not self._guard():
             return
-        idx = self.page_view.current_index()
+        indices = self._target_page_indices()
+        first_idx = min(indices)
         try:
-            self.document.delete_page(idx)
+            self.document.delete_pages(indices)
         except PdfError as exc:
             self._error(str(exc))
             return
         self.renderer.invalidate()
         self.thumbnails.rebuild()
-        new_idx = min(idx, self.document.page_count() - 1)
+        new_idx = min(first_idx, self.document.page_count() - 1)
         self._goto(new_idx)
         self._after_mutation()
 
     def move_current(self, direction: int) -> None:
         if not self._guard():
             return
-        src = self.page_view.current_index()
-        dst = src + direction
-        if not 0 <= dst < self.document.page_count():
-            return
-        # fitz.move_page: pri posune dole treba cieľ +1 (vkladá PRED dst)
-        target = dst if direction < 0 else dst + 1
+        indices = self._target_page_indices()
         try:
-            self.document.move_page(src, target)
+            new_indices = self.document.move_pages(indices, direction)
         except PdfError as exc:
             self._error(str(exc))
             return
+        if new_indices == indices:
+            return
         self.renderer.invalidate()
         self.thumbnails.rebuild()
-        self._goto(dst)
+        self._goto(new_indices[0])
+        for idx in new_indices:
+            item = self.thumbnails.item(idx)
+            if item is not None:
+                item.setSelected(True)
         self._after_mutation()
 
     def duplicate_current(self) -> None:
         if not self._guard():
             return
-        idx = self.page_view.current_index()
-        self.document.duplicate_page(idx)
+        indices = self._target_page_indices()
+        new_indices = self.document.duplicate_pages(indices)
         self.renderer.invalidate()
         self.thumbnails.rebuild()
-        self._goto(idx)
+        self._goto(new_indices[0] if new_indices else indices[0])
+        for idx in new_indices:
+            item = self.thumbnails.item(idx)
+            if item is not None:
+                item.setSelected(True)
         self._after_mutation()
 
     def insert_pdf(self) -> None:
@@ -777,6 +783,12 @@ class MainWindow(QMainWindow):
     # ================================================================== #
     def _guard(self) -> bool:
         return self.document.is_open()
+
+    def _target_page_indices(self) -> list[int]:
+        selected = self.thumbnails.selected_indices()
+        if selected:
+            return selected
+        return [self.page_view.current_index()]
 
     def _after_mutation(self) -> None:
         self._update_title()

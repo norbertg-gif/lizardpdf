@@ -92,6 +92,12 @@ class PdfDocument:
         page.set_rotation((page.rotation + delta) % 360)
         self._mark_dirty()
 
+    def rotate_pages(self, indices: list[int], delta: int = 90) -> None:
+        for idx in self._normalize_indices(indices):
+            page = self.doc.load_page(idx)
+            page.set_rotation((page.rotation + delta) % 360)
+        self._mark_dirty()
+
     def rotate_all(self, delta: int = 90) -> None:
         for page in self.doc:
             page.set_rotation((page.rotation + delta) % 360)
@@ -104,6 +110,14 @@ class PdfDocument:
         self.doc.delete_page(idx)
         self._mark_dirty()
 
+    def delete_pages(self, indices: list[int]) -> None:
+        pages = self._normalize_indices(indices)
+        if len(pages) >= self.page_count():
+            raise PdfError("Nedajú sa odstrániť všetky stránky dokumentu.")
+        for idx in sorted(pages, reverse=True):
+            self.doc.delete_page(idx)
+        self._mark_dirty()
+
     def move_page(self, src: int, dst: int) -> None:
         self._check_index(src)
         if not 0 <= dst <= self.page_count():
@@ -114,10 +128,46 @@ class PdfDocument:
         self.doc.move_page(src, to)
         self._mark_dirty()
 
+    def move_pages(self, indices: list[int], direction: int) -> list[int]:
+        if direction not in (-1, 1):
+            raise PdfError("Neplatný smer posunu stránok.")
+        pages = self._normalize_indices(indices)
+        order = list(range(self.page_count()))
+        selected = set(pages)
+
+        if direction < 0:
+            for pos in sorted(pages):
+                if pos > 0 and pos - 1 not in selected:
+                    order[pos - 1], order[pos] = order[pos], order[pos - 1]
+                    selected.remove(pos)
+                    selected.add(pos - 1)
+        else:
+            for pos in sorted(pages, reverse=True):
+                if pos < len(order) - 1 and pos + 1 not in selected:
+                    order[pos + 1], order[pos] = order[pos], order[pos + 1]
+                    selected.remove(pos)
+                    selected.add(pos + 1)
+
+        new_pages = sorted(selected)
+        if new_pages == pages:
+            return pages
+        self.doc.select(order)
+        self._mark_dirty()
+        return new_pages
+
     def duplicate_page(self, idx: int) -> None:
         self._check_index(idx)
         self.doc.fullcopy_page(idx)
         self._mark_dirty()
+
+    def duplicate_pages(self, indices: list[int]) -> list[int]:
+        pages = self._normalize_indices(indices)
+        new_indices: list[int] = []
+        for idx in pages:
+            self.doc.fullcopy_page(idx)
+            new_indices.append(self.page_count() - 1)
+        self._mark_dirty()
+        return new_indices
 
     def insert_pdf(
         self,
