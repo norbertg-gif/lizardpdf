@@ -10,6 +10,8 @@ import os
 
 import fitz  # PyMuPDF
 
+MERGE_IMAGE_EXTS = {".jpg", ".jpeg"}
+
 
 class PdfError(Exception):
     """Chyba pri práci s PDF (poškodený súbor, zlé heslo, atď.)."""
@@ -225,6 +227,33 @@ class PdfDocument:
             self._mark_dirty()
         return inserted
 
+    def append_files(self, paths: list[str]) -> int:
+        """Pripojí PDF alebo JPG/JPEG súbory na koniec aktuálneho dokumentu."""
+        inserted = self._insert_merge_files(self.doc, paths)
+        if inserted:
+            self._mark_dirty()
+        return inserted
+
+    @staticmethod
+    def merge_files_to_pdf(paths: list[str], out_path: str) -> int:
+        """Spojí PDF alebo JPG/JPEG súbory do nového PDF."""
+        out = fitz.open()
+        try:
+            inserted = PdfDocument._insert_merge_files(out, paths)
+            if inserted == 0:
+                raise PdfError("Neboli vložené žiadne stránky.")
+            out.save(out_path, garbage=4, deflate=True)
+            return inserted
+        except Exception:
+            if os.path.exists(out_path):
+                try:
+                    os.remove(out_path)
+                except OSError:
+                    pass
+            raise
+        finally:
+            out.close()
+
     def extract_pages(self, indices: list[int], out_path: str) -> None:
         """Vyextrahuje vybrané stránky do nového PDF (v poradí ``indices``)."""
         if not indices:
@@ -408,6 +437,59 @@ class PdfDocument:
         for idx in pages:
             self._check_index(idx)
         return pages
+
+    @staticmethod
+    def _insert_merge_files(target: fitz.Document, paths: list[str]) -> int:
+        if not paths:
+            raise PdfError("Nie sú vybrané žiadne súbory na spojenie.")
+
+        inserted = 0
+        for path in paths:
+            ext = os.path.splitext(path)[1].lower()
+            if ext == ".pdf":
+                inserted += PdfDocument._insert_pdf_file(target, path)
+            elif ext in MERGE_IMAGE_EXTS:
+                inserted += PdfDocument._insert_image_file(target, path)
+            else:
+                raise PdfError(f"Nepodporovaný typ súboru: {path}")
+
+        return inserted
+
+    @staticmethod
+    def _insert_pdf_file(target: fitz.Document, path: str) -> int:
+        try:
+            other = fitz.open(path)
+        except Exception as exc:  # noqa: BLE001
+            raise PdfError(f"Súbor sa nepodarilo otvoriť: {path}: {exc}") from exc
+
+        try:
+            if other.needs_pass:
+                raise PdfError(f"Dokument je chránený heslom: {path}")
+            if other.page_count == 0:
+                return 0
+            target.insert_pdf(other, start_at=target.page_count)
+            return other.page_count
+        finally:
+            other.close()
+
+    @staticmethod
+    def _insert_image_file(target: fitz.Document, path: str) -> int:
+        image_doc = None
+        try:
+            image_doc = fitz.open(path)
+            pdf_bytes = image_doc.convert_to_pdf()
+        except Exception as exc:  # noqa: BLE001
+            raise PdfError(f"Obrázok sa nepodarilo vložiť: {path}: {exc}") from exc
+        finally:
+            if image_doc is not None:
+                image_doc.close()
+
+        page_doc = fitz.open("pdf", pdf_bytes)
+        try:
+            target.insert_pdf(page_doc, start_at=target.page_count)
+        finally:
+            page_doc.close()
+        return 1
 
     def _mark_dirty(self) -> None:
         self._dirty = True

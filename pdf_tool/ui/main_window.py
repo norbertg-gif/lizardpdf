@@ -39,6 +39,7 @@ from .page_view import FitMode, PageView
 from .thumbnail_panel import ThumbnailPanel
 
 PDF_FILTER = "PDF súbory (*.pdf)"
+MERGE_FILTER = "PDF a JPG súbory (*.pdf *.jpg *.jpeg);;PDF súbory (*.pdf);;JPG obrázky (*.jpg *.jpeg)"
 
 
 def app_icon() -> QIcon | None:
@@ -189,7 +190,7 @@ class MainWindow(QMainWindow):
 
         self.act_insert = QAction("Vložiť PDF…", self)
         self.act_insert.triggered.connect(self.insert_pdf)
-        self.act_merge = QAction("Pripojiť viac PDF…", self)
+        self.act_merge = QAction("Pripojiť/spojiť PDF a JPG…", self)
         self.act_merge.triggered.connect(self.merge_pdfs)
         self.act_extract = QAction("Extrahovať vybrané…", self)
         self.act_extract.triggered.connect(self.extract_selected)
@@ -655,23 +656,39 @@ class MainWindow(QMainWindow):
         self._after_mutation()
 
     def merge_pdfs(self) -> None:
-        if not self._guard():
-            return
         paths, _ = QFileDialog.getOpenFileNames(
-            self, "Pripojiť PDF súbory", "", PDF_FILTER
+            self, "Vybrať PDF alebo JPG súbory", "", MERGE_FILTER
         )
         if not paths:
             return
+
+        if self.document.is_open():
+            try:
+                inserted = self.document.append_files(paths)
+            except PdfError as exc:
+                self._error(str(exc))
+                return
+            self.renderer.invalidate()
+            self.thumbnails.rebuild()
+            self.page_view.refresh()
+            self._after_mutation()
+            self.status.showMessage(f"Pripojených {inserted} strán.", 4000)
+            return
+
+        out_path, _ = QFileDialog.getSaveFileName(
+            self, "Uložiť spojené PDF ako", "", PDF_FILTER
+        )
+        if not out_path:
+            return
+        if not out_path.lower().endswith(".pdf"):
+            out_path += ".pdf"
         try:
-            inserted = self.document.append_pdfs(paths)
+            inserted = PdfDocument.merge_files_to_pdf(paths, out_path)
         except PdfError as exc:
             self._error(str(exc))
             return
-        self.renderer.invalidate()
-        self.thumbnails.rebuild()
-        self.page_view.refresh()
-        self._after_mutation()
-        self.status.showMessage(f"Pripojených {inserted} strán.", 4000)
+        self._open_path(out_path)
+        self.status.showMessage(f"Spojené do nového PDF: {inserted} strán.", 4000)
 
     def extract_selected(self) -> None:
         if not self.document.is_open():
@@ -820,12 +837,12 @@ class MainWindow(QMainWindow):
             self.act_move_down,
             self.act_duplicate,
             self.act_insert,
-            self.act_merge,
             self.act_extract,
             self.act_export,
             self.act_text_stamp,
         ):
             act.setEnabled(on)
+        self.act_merge.setEnabled(True)
 
     def _update_title(self) -> None:
         base = "LizardPDF"

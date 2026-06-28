@@ -17,6 +17,12 @@ def _make_pdf(path, pages: int = 3) -> None:
     doc.close()
 
 
+def _make_jpg(path) -> None:
+    pix = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 80, 60), False)
+    pix.clear_with(230)
+    pix.save(str(path))
+
+
 @pytest.fixture()
 def sample(tmp_path):
     p = tmp_path / "sample.pdf"
@@ -142,6 +148,30 @@ def test_append_pdfs(sample, tmp_path):
     assert inserted == 3
     assert sample.page_count() == 6
     assert sample.is_dirty()
+
+
+def test_append_files_accepts_jpg(sample, tmp_path):
+    image = tmp_path / "image.jpg"
+    _make_jpg(image)
+    inserted = sample.append_files([str(image)])
+    assert inserted == 1
+    assert sample.page_count() == 4
+    assert sample.is_dirty()
+
+
+def test_merge_files_to_pdf_without_open_document(tmp_path):
+    pdf = tmp_path / "one.pdf"
+    image = tmp_path / "image.jpg"
+    out = tmp_path / "merged.pdf"
+    _make_pdf(pdf, 2)
+    _make_jpg(image)
+
+    inserted = PdfDocument.merge_files_to_pdf([str(pdf), str(image)], str(out))
+
+    assert inserted == 3
+    chk = fitz.open(str(out))
+    assert chk.page_count == 3
+    chk.close()
 
 
 def test_extract_pages(sample, tmp_path):
