@@ -27,7 +27,14 @@ from ..core.document import PdfDocument, PdfError
 from ..core.exporter import export_images
 from ..core.renderer import PageRenderer
 from ..resources import icon_path
-from .dialogs import AboutDialog, ExportImagesDialog, InfoDialog, InsertPdfDialog
+from .dialogs import (
+    AboutDialog,
+    ExportImagesDialog,
+    InfoDialog,
+    InsertPdfDialog,
+    MetadataEditDialog,
+    TextStampDialog,
+)
 from .page_view import FitMode, PageView
 from .thumbnail_panel import ThumbnailPanel
 
@@ -189,9 +196,13 @@ class MainWindow(QMainWindow):
 
         self.act_info = QAction("Info o dokumente…", self)
         self.act_info.triggered.connect(self.show_info)
+        self.act_edit_metadata = QAction("Upraviť metadata…", self)
+        self.act_edit_metadata.triggered.connect(self.edit_metadata)
 
         self.act_about = QAction("O programe…", self)
         self.act_about.triggered.connect(self.show_about)
+        self.act_text_stamp = QAction("Text na stránky…", self)
+        self.act_text_stamp.triggered.connect(self.text_stamp_dialog)
 
     def _build_menu(self) -> None:
         m = self.menuBar()
@@ -204,6 +215,7 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.act_revert)
         file_menu.addSeparator()
         file_menu.addAction(self.act_info)
+        file_menu.addAction(self.act_edit_metadata)
         file_menu.addSeparator()
         file_menu.addAction(self.act_quit)
 
@@ -233,6 +245,8 @@ class MainWindow(QMainWindow):
         page_menu.addAction(self.act_merge)
         page_menu.addAction(self.act_extract)
         page_menu.addAction(self.act_export)
+        page_menu.addSeparator()
+        page_menu.addAction(self.act_text_stamp)
 
         help_menu = m.addMenu("Pomocník")
         help_menu.addAction(self.act_about)
@@ -706,6 +720,50 @@ class MainWindow(QMainWindow):
             return
         InfoDialog(self, info=self.document.metadata()).exec()
 
+    def edit_metadata(self) -> None:
+        if not self.document.is_open():
+            return
+        meta = self.document.metadata().get("metadata") or {}
+        dlg = MetadataEditDialog(self, metadata=meta)
+        if dlg.exec() != dlg.DialogCode.Accepted:
+            return
+        self.document.update_metadata(dlg.values())
+        self._after_mutation()
+        self.status.showMessage("Metadata dokumentu boli upravené.", 4000)
+
+    def text_stamp_dialog(self) -> None:
+        if not self.document.is_open():
+            return
+        selected = self.thumbnails.selected_indices()
+        dlg = TextStampDialog(self, has_selection=bool(selected))
+        if dlg.exec() != dlg.DialogCode.Accepted:
+            return
+        vals = dlg.values()
+        indices = selected if vals["only_selected"] and selected else None
+        try:
+            if vals["mode"] == "numbers":
+                self.document.add_page_numbers(
+                    indices=indices,
+                    prefix=vals["prefix"],
+                    font_size=vals["font_size"],
+                )
+                message = "Čísla strán boli pridané."
+            else:
+                self.document.add_text_stamp(
+                    vals["text"],
+                    indices=indices,
+                    font_size=vals["font_size"],
+                )
+                message = "Text bol pridaný na stránky."
+        except PdfError as exc:
+            self._error(str(exc))
+            return
+        self.renderer.invalidate()
+        self.thumbnails.rebuild()
+        self.page_view.refresh()
+        self._after_mutation()
+        self.status.showMessage(message, 4000)
+
     def show_about(self) -> None:
         AboutDialog(self).exec()
 
@@ -727,6 +785,7 @@ class MainWindow(QMainWindow):
             self.act_save_opt,
             self.act_revert,
             self.act_info,
+            self.act_edit_metadata,
             self.act_prev,
             self.act_next,
             self.act_zoom_in,
@@ -746,6 +805,7 @@ class MainWindow(QMainWindow):
             self.act_merge,
             self.act_extract,
             self.act_export,
+            self.act_text_stamp,
         ):
             act.setEnabled(on)
 

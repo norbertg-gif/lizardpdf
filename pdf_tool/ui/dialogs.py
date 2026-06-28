@@ -5,12 +5,14 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QRadioButton,
     QSpinBox,
     QTextEdit,
@@ -162,6 +164,97 @@ class InfoDialog(QDialog):
                 if val:
                     lines.append(f"   {key}: {val}")
         return "\n".join(lines)
+
+
+class MetadataEditDialog(QDialog):
+    """Úprava základných PDF metadát."""
+
+    FIELDS = (
+        ("title", "Názov"),
+        ("author", "Autor"),
+        ("subject", "Predmet"),
+        ("keywords", "Kľúčové slová"),
+        ("creator", "Vytvoril"),
+        ("producer", "Producent"),
+    )
+
+    def __init__(self, parent=None, metadata: dict | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Upraviť metadata")
+        self.setMinimumWidth(420)
+        metadata = metadata or {}
+        self.edits: dict[str, QLineEdit] = {}
+
+        form = QFormLayout()
+        for key, label in self.FIELDS:
+            edit = QLineEdit(str(metadata.get(key) or ""))
+            self.edits[key] = edit
+            form.addRow(f"{label}:", edit)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+        layout = QVBoxLayout(self)
+        layout.addLayout(form)
+        layout.addWidget(buttons)
+
+    def values(self) -> dict[str, str]:
+        return {key: edit.text() for key, edit in self.edits.items()}
+
+
+class TextStampDialog(QDialog):
+    """Voľby pre textovú pečiatku alebo číslovanie strán."""
+
+    def __init__(self, parent=None, has_selection: bool = False) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Text na stránky")
+        self.setMinimumWidth(380)
+
+        self.rb_stamp = QRadioButton("Textová pečiatka")
+        self.rb_stamp.setChecked(True)
+        self.rb_numbers = QRadioButton("Čísla strán")
+
+        self.text_edit = QLineEdit()
+        self.text_edit.setPlaceholderText("Napr. Kópia")
+        self.prefix_edit = QLineEdit("Strana")
+
+        self.size_spin = QSpinBox()
+        self.size_spin.setRange(6, 72)
+        self.size_spin.setValue(10)
+
+        self.selection_check = QCheckBox("Použiť iba vybrané stránky")
+        self.selection_check.setEnabled(has_selection)
+        self.selection_check.setChecked(has_selection)
+
+        form = QFormLayout()
+        form.addRow(self.rb_stamp)
+        form.addRow("Text:", self.text_edit)
+        form.addRow(self.rb_numbers)
+        form.addRow("Prefix:", self.prefix_edit)
+        form.addRow("Veľkosť:", self.size_spin)
+        form.addRow(self.selection_check)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+        layout = QVBoxLayout(self)
+        layout.addLayout(form)
+        layout.addWidget(buttons)
+
+    def values(self) -> dict:
+        return {
+            "mode": "numbers" if self.rb_numbers.isChecked() else "stamp",
+            "text": self.text_edit.text(),
+            "prefix": self.prefix_edit.text() or "Strana",
+            "font_size": self.size_spin.value(),
+            "only_selected": self.selection_check.isChecked(),
+        }
 
 
 class AboutDialog(QDialog):

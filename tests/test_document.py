@@ -121,6 +121,14 @@ def test_metadata(sample):
     assert len(meta["page_sizes"]) == 3
 
 
+def test_update_metadata(sample):
+    sample.update_metadata({"title": "Novy nazov", "author": "Tester"})
+    meta = sample.metadata()["metadata"]
+    assert meta["title"] == "Novy nazov"
+    assert meta["author"] == "Tester"
+    assert sample.is_dirty()
+
+
 def test_page_text_and_search(sample):
     assert sample.has_text()
     assert "Strana 2" in sample.page_text(1)
@@ -128,6 +136,20 @@ def test_page_text_and_search(sample):
     assert sample.search_text("strana 3") == 2
     assert sample.search_text("strana 1", start_idx=1) == 0
     assert sample.search_text("nenajde-sa") is None
+
+
+def test_text_stamp_selected_pages(sample):
+    sample.add_text_stamp("Kopia", indices=[1])
+    assert "Kopia" not in sample.page_text(0)
+    assert "Kopia" in sample.page_text(1)
+    assert sample.is_dirty()
+
+
+def test_page_numbers(sample):
+    sample.add_page_numbers()
+    assert "Strana 1 / 3" in sample.page_text(0)
+    assert "Strana 3 / 3" in sample.page_text(2)
+    assert sample.is_dirty()
 
 
 def test_image_only_pdf_has_no_text(tmp_path):

@@ -221,6 +221,55 @@ class PdfDocument:
                 return idx
         return None
 
+    def add_text_stamp(
+        self,
+        text: str,
+        indices: list[int] | None = None,
+        font_size: int = 10,
+        bottom_margin: float = 24,
+    ) -> None:
+        text = text.strip()
+        if not text:
+            raise PdfError("Zadajte text pečiatky.")
+        pages = self._normalize_indices(indices)
+        for idx in pages:
+            page = self.doc.load_page(idx)
+            rect = page.rect
+            point = fitz.Point(36, max(12, rect.height - bottom_margin))
+            page.insert_text(
+                point,
+                text,
+                fontsize=font_size,
+                color=(0.35, 0.35, 0.35),
+                overlay=True,
+            )
+        self._mark_dirty()
+
+    def add_page_numbers(
+        self,
+        indices: list[int] | None = None,
+        prefix: str = "Strana",
+        font_size: int = 10,
+        bottom_margin: float = 24,
+    ) -> None:
+        pages = self._normalize_indices(indices)
+        total = self.page_count()
+        for idx in pages:
+            page = self.doc.load_page(idx)
+            rect = page.rect
+            text = f"{prefix} {idx + 1} / {total}".strip()
+            text_width = fitz.get_text_length(text, fontsize=font_size)
+            x = max(36, (rect.width - text_width) / 2)
+            y = max(12, rect.height - bottom_margin)
+            page.insert_text(
+                fitz.Point(x, y),
+                text,
+                fontsize=font_size,
+                color=(0.35, 0.35, 0.35),
+                overlay=True,
+            )
+        self._mark_dirty()
+
     # ------------------------------------------------------------------ #
     # Metadata / stav
     # ------------------------------------------------------------------ #
@@ -242,6 +291,22 @@ class PdfDocument:
             "file_size": file_size,
             "metadata": dict(doc.metadata or {}),
         }
+
+    def update_metadata(self, values: dict[str, str]) -> None:
+        meta = dict(self.doc.metadata or {})
+        allowed = {
+            "title",
+            "author",
+            "subject",
+            "keywords",
+            "creator",
+            "producer",
+        }
+        for key in allowed:
+            if key in values:
+                meta[key] = values[key].strip()
+        self.doc.set_metadata(meta)
+        self._mark_dirty()
 
     def is_dirty(self) -> bool:
         return self._dirty
@@ -283,6 +348,16 @@ class PdfDocument:
     def _check_index(self, idx: int) -> None:
         if not 0 <= idx < self.page_count():
             raise PdfError(f"Neplatný index stránky: {idx}")
+
+    def _normalize_indices(self, indices: list[int] | None) -> list[int]:
+        if indices is None:
+            return list(range(self.page_count()))
+        if not indices:
+            raise PdfError("Nie sú vybrané žiadne stránky.")
+        pages = sorted(set(indices))
+        for idx in pages:
+            self._check_index(idx)
+        return pages
 
     def _mark_dirty(self) -> None:
         self._dirty = True
