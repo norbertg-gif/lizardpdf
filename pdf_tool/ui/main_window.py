@@ -553,6 +553,7 @@ class MainWindow(QMainWindow):
         self.document.rotate_pages(indices, 90)
         self.renderer.invalidate()
         self.thumbnails.rebuild()
+        self._restore_thumbnail_selection(indices)
         self.page_view.refresh()
         self._after_mutation()
 
@@ -595,10 +596,7 @@ class MainWindow(QMainWindow):
         self.renderer.invalidate()
         self.thumbnails.rebuild()
         self._goto(new_indices[0])
-        for idx in new_indices:
-            item = self.thumbnails.item(idx)
-            if item is not None:
-                item.setSelected(True)
+        self._restore_thumbnail_selection(new_indices)
         self._after_mutation()
 
     def duplicate_current(self) -> None:
@@ -609,10 +607,7 @@ class MainWindow(QMainWindow):
         self.renderer.invalidate()
         self.thumbnails.rebuild()
         self._goto(new_indices[0] if new_indices else indices[0])
-        for idx in new_indices:
-            item = self.thumbnails.item(idx)
-            if item is not None:
-                item.setSelected(True)
+        self._restore_thumbnail_selection(new_indices)
         self._after_mutation()
 
     def insert_pdf(self) -> None:
@@ -789,6 +784,12 @@ class MainWindow(QMainWindow):
         if selected:
             return selected
         return [self.page_view.current_index()]
+
+    def _restore_thumbnail_selection(self, indices: list[int]) -> None:
+        for idx in indices:
+            item = self.thumbnails.item(idx)
+            if item is not None:
+                item.setSelected(True)
 
     def _after_mutation(self) -> None:
         self._update_title()
